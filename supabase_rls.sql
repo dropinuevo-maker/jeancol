@@ -1,8 +1,20 @@
--- Supabase RLS Policies for JeanCol
--- Ejecutar en SQL Editor de Supabase
+-- ============================================
+-- 1. CREAR TABLA PROFILES (si no existe)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  email TEXT,
+  "fullName" TEXT,
+  phone TEXT,
+  role TEXT DEFAULT 'user',
+  "avatarUrl" TEXT,
+  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
 
 -- ============================================
--- ELIMINAR POLÍTICAS EXISTENTES SI HAY CONFLICTOS
+-- 2. ELIMINAR POLÍTICAS EXISTENTES
 -- ============================================
 
 DROP POLICY IF EXISTS "Public read categories" ON categories;
@@ -29,7 +41,13 @@ DROP POLICY IF EXISTS "Public read profiles" ON profiles;
 DROP POLICY IF EXISTS "Users update own profile" ON profiles;
 
 -- ============================================
--- POLÍTICAS DE LECTURA PÚBLICA
+-- 3. HABILITAR RLS
+-- ============================================
+
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+-- ============================================
+-- 4. CREAR POLÍTICAS
 -- ============================================
 
 CREATE POLICY "Public read categories" ON categories FOR SELECT USING (true);
@@ -52,29 +70,13 @@ CREATE POLICY "Public read home_sections" ON home_sections FOR SELECT USING (tru
 CREATE POLICY "Public manage home_sections" ON home_sections FOR ALL USING (true);
 CREATE POLICY "Public read store_config" ON store_config FOR SELECT USING (true);
 CREATE POLICY "Public update store_config" ON store_config FOR UPDATE USING (true);
-
--- ============================================
--- PROFILES (si ya existe, omitir esta parte)
--- ============================================
-
--- Crear tabla profiles si no existe
-CREATE TABLE IF NOT EXISTS profiles (
-  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
-  email TEXT,
-  "fullName" TEXT,
-  phone TEXT,
-  role TEXT DEFAULT 'user',
-  "avatarUrl" TEXT,
-  "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-  "updatedAt" TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "Public read profiles" ON profiles FOR SELECT USING (true);
 CREATE POLICY "Users update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 
--- Trigger para crear perfil automáticamente
+-- ============================================
+-- 5. TRIGGER PARA NUEVOS USUARIOS
+-- ============================================
+
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -91,7 +93,7 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- ============================================
--- VERIFICAR
+-- 6. VERIFICAR
 -- ============================================
 
 SELECT tablename, rowsecurity FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;
